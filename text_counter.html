@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Text & Word Counter</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 2rem 1rem; min-height: 100vh; display: flex; justify-content: center; }
+
+    .container { max-width: 900px; width: 100%; display: flex; flex-direction: column; gap: 1.5rem; }
+
+    header { text-align: center; }
+    header h1 { font-size: 2rem; font-weight: 700; }
+    header p { color: var(--text-muted); margin-top: 0.5rem; }
+
+    /* Stat Cards Grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; }
+    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; text-align: center; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); }
+    .stat-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+
+    /* Textarea & Toolbar */
+    .editor-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+    
+    .toolbar { display: flex; gap: 0.5rem; padding: 0.75rem 1rem; background: rgba(0, 0, 0, 0.2); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .btn { background: var(--border); color: var(--text); border: none; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .btn:hover { background: var(--accent); }
+    .btn-danger:hover { background: #ef4444; }
+
+    textarea {
+      width: 100%; height: 260px; background: transparent; border: none; color: var(--text);
+      padding: 1rem; font-size: 1rem; line-height: 1.6; resize: vertical; outline: none;
+    }
+
+    /* Meta Info Section */
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 600px) { .meta-grid { grid-template-columns: 1fr; } }
+
+    .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+    .panel h2 { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-muted); }
+
+    .meta-list { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9rem; }
+    .meta-item { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--border); padding-bottom: 0.4rem; }
+
+    .keywords { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .tag { background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); color: var(--text); padding: 0.25rem 0.6rem; border-radius: 16px; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Text & Word Counter</h1>
+      <p>Real-time metrics, time estimates, and keyword density</p>
+    </header>
+
+    <!-- Top Counter Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="cnt-words">0</div>
+        <div class="stat-label">Words</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="cnt-chars">0</div>
+        <div class="stat-label">Characters</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="cnt-chars-nospace">0</div>
+        <div class="stat-label">No Spaces</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="cnt-spaces">0</div>
+        <div class="stat-label">Spaces</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="cnt-sentences">0</div>
+        <div class="stat-label">Sentences</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="cnt-paragraphs">0</div>
+        <div class="stat-label">Paragraphs</div>
+      </div>
+    </div>
+
+    <!-- Main Editor -->
+    <div class="editor-box">
+      <div class="toolbar">
+        <button class="btn" onclick="transformText('uppercase')">UPPERCASE</button>
+        <button class="btn" onclick="transformText('lowercase')">lowercase</button>
+        <button class="btn" onclick="copyText()">Copy Text</button>
+        <button class="btn btn-danger" onclick="clearText()">Clear</button>
+      </div>
+      <textarea id="text-input" placeholder="Type or paste your text here..."></textarea>
+    </div>
+
+    <!-- Meta Details & Keywords -->
+    <div class="meta-grid">
+      <div class="panel">
+        <h2>Readability & Time Estimates</h2>
+        <div class="meta-list">
+          <div class="meta-item"><span>Reading Time (~200 wpm)</span> <strong id="time-read">0 sec</strong></div>
+          <div class="meta-item"><span>Speaking Time (~130 wpm)</span> <strong id="time-speak">0 sec</strong></div>
+          <div class="meta-item"><span>Avg. Word Length</span> <strong id="avg-word-len">0 chars</strong></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Top Keywords (Density)</h2>
+        <div class="keywords" id="keyword-list">
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Type text to show top keywords...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const textarea = document.getElementById('text-input');
+
+    textarea.addEventListener('input', updateMetrics);
+
+    function updateMetrics() {
+      const text = textarea.value;
+
+      // 1. Basic Counts
+      const chars = text.length;
+      const spaces = (text.match(/ /g) || []).length;
+      const charsNoSpace = chars - (text.match(/\s/g) || []).length;
+      
+      // Words array (filter empty matches)
+      const wordsArr = text.trim().split(/\s+/).filter(word => word.length > 0);
+      const words = wordsArr.length;
+
+      // Sentences & Paragraphs
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+      const paragraphs = text.split(/\n+/).filter(p => p.trim().length > 0).length;
+
+      // Update UI Counters
+      document.getElementById('cnt-words').textContent = words.toLocaleString();
+      document.getElementById('cnt-chars').textContent = chars.toLocaleString();
+      document.getElementById('cnt-chars-nospace').textContent = charsNoSpace.toLocaleString();
+      document.getElementById('cnt-spaces').textContent = spaces.toLocaleString();
+      document.getElementById('cnt-sentences').textContent = sentences.toLocaleString();
+      document.getElementById('cnt-paragraphs').textContent = paragraphs.toLocaleString();
+
+      // 2. Time Estimates
+      const readMinutes = words / 200;
+      const speakMinutes = words / 130;
+      document.getElementById('time-read').textContent = formatTime(readMinutes);
+      document.getElementById('time-speak').textContent = formatTime(speakMinutes);
+
+      // Average Word Length
+      const avgLen = words > 0 ? (charsNoSpace / words).toFixed(1) : 0;
+      document.getElementById('avg-word-len').textContent = `${avgLen} chars`;
+
+      // 3. Keyword Density
+      updateKeywords(wordsArr);
+    }
+
+    function formatTime(minutes) {
+      if (minutes < 1) return `${Math.ceil(minutes * 60)} sec`;
+      return `${minutes.toFixed(1)} min`;
+    }
+
+    function updateKeywords(words) {
+      const container = document.getElementById('keyword-list');
+      if (words.length === 0) {
+        container.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Type text to show top keywords...</span>';
+        return;
+      }
+
+      // Stopwords to filter out basic grammar words
+      const stopWords = new Set(["the","be","to","of","and","a","in","that","have","i","it","for","not","on","with","he","as","you","do","at","this","but","his","by","from","they","we","say","her","she","or","an","will","my","one","all","would","there","their","what","so","up","out","if","about","who","get","which","go","me"]);
+      
+      const freqMap = {};
+      words.forEach(w => {
+        const cleanWord = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanWord.length > 2 && !stopWords.has(cleanWord)) {
+          freqMap[cleanWord] = (freqMap[cleanWord] || 0) + 1;
+        }
+      });
+
+      const sorted = Object.entries(freqMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      if (sorted.length === 0) {
+        container.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">No significant keywords found.</span>';
+        return;
+      }
+
+      container.innerHTML = sorted
+        .map(([word, count]) => `<span class="tag">${word} (${count})</span>`)
+        .join('');
+    }
+
+    // Text Utility Actions
+    function transformText(type) {
+      if (type === 'uppercase') textarea.value = textarea.value.toUpperCase();
+      if (type === 'lowercase') textarea.value = textarea.value.toLowerCase();
+      updateMetrics();
+    }
+
+    function copyText() {
+      if (!textarea.value) return;
+      navigator.clipboard.writeText(textarea.value);
+      alert('Text copied to clipboard!');
+    }
+
+    function clearText() {
+      textarea.value = '';
+      updateMetrics();
+    }
+  </script>
+</body>
+</html>
