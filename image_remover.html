@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Image Purger & Deduplicator</title>
+
+  <!-- CDNs: FontAwesome, PDF.js, and pdf-lib -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --bg-hover: #334155;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-primary: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-danger: #ef4444;
+      --accent-danger-hover: #dc2626;
+      --radius-lg: 16px;
+      --radius-md: 8px;
+      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .brand i {
+      color: var(--accent-primary);
+    }
+
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    /* Upload Area */
+    .upload-card {
+      background: var(--bg-card);
+      border: 2px dashed var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+    }
+
+    .upload-card:hover, .upload-card.drag-over {
+      border-color: var(--accent-primary);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    .upload-icon {
+      font-size: 3rem;
+      color: var(--accent-primary);
+      margin-bottom: 1rem;
+    }
+
+    .upload-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .upload-subtitle {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    /* Progress & Status */
+    .status-panel {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      border: 1px solid var(--border-color);
+      display: none;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .status-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .progress-bar-bg {
+      height: 8px;
+      background: var(--bg-hover);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-primary);
+      transition: width 0.2s ease;
+    }
+
+    /* Dashboard Layout */
+    .dashboard {
+      display: none;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .toolbar {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.5rem;
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .action-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: var(--bg-hover);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius-md);
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+      font-size: 0.875rem;
+    }
+
+    .btn:hover {
+      background: #475569;
+    }
+
+    .btn-primary {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-danger {
+      background: var(--accent-danger);
+      border-color: var(--accent-danger);
+    }
+
+    .btn-danger:hover {
+      background: var(--accent-danger-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Grid Layout */
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .image-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: var(--transition);
+    }
+
+    .image-card.selected {
+      border-color: var(--accent-danger);
+      background: rgba(239, 68, 68, 0.05);
+    }
+
+    .preview-container {
+      height: 180px;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #00000020;
+      position: relative;
+    }
+
+    .preview-container img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .badge-frequency {
+      position: absolute;
+      top: 0.5rem;
+      left: 0.5rem;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--border-color);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-main);
+      backdrop-filter: blur(4px);
+    }
+
+    .card-checkbox {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+      accent-color: var(--accent-danger);
+    }
+
+    .card-details {
+      padding: 1rem;
+      border-top: 1px solid var(--border-color);
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .page-list {
+      display: inline-block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    /* Modal loading state */
+    .processing-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+      z-index: 100;
+    }
+
+    .spinner {
+      font-size: 2.5rem;
+      color: var(--accent-primary);
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <i class="fa-solid fa-file-pdf"></i>
+      <span>PDF Image Purger</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Dropzone -->
+    <div class="upload-card" id="dropZone">
+      <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+      <div class="upload-title">Drop your PDF file here, or click to browse</div>
+      <div class="upload-subtitle">Extracts embedded raster graphics, groups recurring images, and redacts selected targets</div>
+      <input type="file" id="fileInput" accept="application/pdf">
+    </div>
+
+    <!-- Status & Progress -->
+    <div class="status-panel" id="statusPanel">
+      <div class="status-header">
+        <span id="statusText">Processing document...</span>
+        <span id="statusPercent">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBar"></div>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="dashboard" id="dashboard">
+      <div class="toolbar">
+        <div class="action-group">
+          <button class="btn" id="btnSelectAll"><i class="fa-solid fa-check-double"></i> Select All</button>
+          <button class="btn" id="btnDeselectAll"><i class="fa-solid fa-xmark"></i> Deselect All</button>
+          <button class="btn" id="btnSelectCommon"><i class="fa-solid fa-repeat"></i> Select Recurring (&gt;1 Pages)</button>
+        </div>
+        <button class="btn btn-danger" id="btnDownload">
+          <i class="fa-solid fa-trash-can"></i> Remove Selected & Download PDF
+        </button>
+      </div>
+
+      <div class="image-grid" id="imageGrid"></div>
+    </div>
+  </main>
+
+  <!-- Global Spinner Overlay -->
+  <div class="processing-overlay" id="globalOverlay">
+    <i class="fa-solid fa-circle-notch spinner"></i>
+    <div id="overlayText" style="font-weight: 500;">Rebuilding PDF structure...</div>
+  </div>
+
+  <script>
+    // Initialize PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // State Variables
+    let rawPdfBytes = null;
+    let originalFileName = "";
+    let extractedGroups = []; // Array of { hash, imgDataUrl, width, height, pages: [], xobjectKeys: [{pageIdx, key}] }
+
+    // DOM Elements
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const statusPanel = document.getElementById('statusPanel');
+    const statusText = document.getElementById('statusText');
+    const statusPercent = document.getElementById('statusPercent');
+    const progressBar = document.getElementById('progressBar');
+    const dashboard = document.getElementById('dashboard');
+    const imageGrid = document.getElementById('imageGrid');
+    const globalOverlay = document.getElementById('globalOverlay');
+    const overlayText = document.getElementById('overlayText');
+
+    // Drag and Drop Event Listeners
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    // File Handler
+    async function handleFile(file) {
+      if (file.type !== 'application/pdf') {
+        alert('Please select a valid PDF file.');
+        return;
+      }
+      originalFileName = file.name.replace(/\.[^/.]+$/, "");
+      rawPdfBytes = await file.arrayBuffer();
+
+      // UI Reset
+      dashboard.style.display = 'none';
+      statusPanel.style.display = 'flex';
+      imageGrid.innerHTML = '';
+      extractedGroups = [];
+
+      await scanPdfImages();
+    }
+
+    // Perceptual Hash Generation (dHash)
+    function computeDHash(canvas) {
+      const ctx = canvas.getContext('2d');
+      // Create offscreen canvas for 9x8 resizing
+      const osCanvas = document.createElement('canvas');
+      osCanvas.width = 9;
+      osCanvas.height = 8;
+      const osCtx = osCanvas.getContext('2d');
+      
+      osCtx.drawImage(canvas, 0, 0, 9, 8);
+      const imgData = osCtx.getImageData(0, 0, 9, 8).data;
+      
+      let hash = "";
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const leftIdx = (row * 9 + col) * 4;
+          const rightIdx = (row * 9 + (col + 1)) * 4;
+          
+          // Calculate luminance
+          const leftLum = imgData[leftIdx] * 0.299 + imgData[leftIdx+1] * 0.587 + imgData[leftIdx+2] * 0.114;
+          const rightLum = imgData[rightIdx] * 0.299 + imgData[rightIdx+1] * 0.587 + imgData[rightIdx+2] * 0.114;
+          
+          hash += (leftLum > rightLum) ? "1" : "0";
+        }
+      }
+      return hash;
+    }
+
+    // Extract PDF Images & Calculate Frequency Groups
+    async function scanPdfImages() {
+      try {
+        const loadingTask = pdfjsLib.getDocument({ data: rawPdfBytes.slice(0) });
+        const pdfDoc = await loadingTask.promise;
+        const totalPages = pdfDoc.numPages;
+
+        const hashMap = new Map(); // hash -> group object
+
+        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+          // Update Status Progress
+          const pct = Math.round((pageNum / totalPages) * 100);
+          statusText.textContent = `Scanning Page ${pageNum} of ${totalPages} for images...`;
+          statusPercent.textContent = `${pct}%`;
+          progressBar.style.width = `${pct}%`;
+
+          const page = await pdfDoc.getPage(pageNum);
+          const operatorList = await page.getOperatorList();
+          const validImageTypes = [
+            pdfjsLib.ImageKind.GRAYSCALE_1BPP,
+            pdfjsLib.ImageKind.RGB_24BPP,
+            pdfjsLib.ImageKind.RGBA_32BPP
+          ];
+
+          for (let i = 0; i < operatorList.fnArray.length; i++) {
+            if (operatorList.fnArray[i] === pdfjsLib.OPS.paintImageXObject) {
+              const xObjKey = operatorList.argsArray[i][0];
+              
+              try {
+                // Read image object directly from page objects
+                const imgObj = await new Promise((resolve) => {
+                  page.objs.get(xObjKey, (obj) => resolve(obj));
+                });
+
+                if (!imgObj || !imgObj.width || !imgObj.height) continue;
+
+                // Render image to canvas to compute hash & DataURL
+                const canvas = document.createElement('canvas');
+                canvas.width = imgObj.width;
+                canvas.height = imgObj.height;
+                const ctx = canvas.getContext('2d');
+
+                let imgData = ctx.createImageData(imgObj.width, imgObj.height);
+                
+                // Format pixel buffer safely
+                if (imgObj.data.length === imgObj.width * imgObj.height * 4) {
+                  imgData.data.set(imgObj.data);
+                } else if (imgObj.data.length === imgObj.width * imgObj.height * 3) {
+                  let j = 0;
+                  for (let k = 0; k < imgObj.data.length; k += 3) {
+                    imgData.data[j] = imgObj.data[k];
+                    imgData.data[j+1] = imgObj.data[k+1];
+                    imgData.data[j+2] = imgObj.data[k+2];
+                    imgData.data[j+3] = 255;
+                    j += 4;
+                  }
+                } else {
+                  continue; // Skip unsupported raw formats
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+
+                const hash = computeDHash(canvas);
+                const dataUrl = canvas.toDataURL('image/png');
+
+                if (hashMap.has(hash)) {
+                  const group = hashMap.get(hash);
+                  if (!group.pages.includes(pageNum)) group.pages.push(pageNum);
+                  group.xobjectKeys.push({ pageIdx: pageNum - 1, key: xObjKey });
+                } else {
+                  hashMap.set(hash, {
+                    hash,
+                    imgDataUrl: dataUrl,
+                    width: imgObj.width,
+                    height: imgObj.height,
+                    pages: [pageNum],
+                    xobjectKeys: [{ pageIdx: pageNum - 1, key: xObjKey }],
+                    selected: false
+                  });
+                }
+
+              } catch (err) {
+                console.warn(`Could not parse XObject ${xObjKey}:`, err);
+              }
+            }
+          }
+        }
+
+        // Convert Map to Array & Sort by Frequency (Highest first)
+        extractedGroups = Array.from(hashMap.values()).sort((a, b) => b.pages.length - a.pages.length);
+
+        renderDashboard();
+      } catch (err) {
+        alert("Failed to extract images from PDF: " + err.message);
+        console.error(err);
+      } finally {
+        statusPanel.style.display = 'none';
+      }
+    }
+
+    // Render Dashboard UI Grid
+    function renderDashboard() {
+      dashboard.style.display = 'flex';
+      imageGrid.innerHTML = '';
+
+      if (extractedGroups.length === 0) {
+        imageGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 3rem;">
+          No raster images were detected in this PDF document.
+        </div>`;
+        return;
+      }
+
+      extractedGroups.forEach((group, index) => {
+        const card = document.createElement('div');
+        card.className = `image-card ${group.selected ? 'selected' : ''}`;
+        card.dataset.index = index;
+
+        const pageText = group.pages.length === 1 
+          ? `Page ${group.pages[0]}` 
+          : `Appears on ${group.pages.length} pages (${group.pages.join(', ')})`;
+
+        card.innerHTML = `
+          <div class="preview-container">
+            <span class="badge-frequency">
+              <i class="fa-solid fa-layer-group"></i> ${group.pages.length}x
+            </span>
+            <input type="checkbox" class="card-checkbox" ${group.selected ? 'checked' : ''}>
+            <img src="${group.imgDataUrl}" alt="Extracted Graphic">
+          </div>
+          <div class="card-details">
+            <div><strong>Dimensions:</strong> ${group.width} × ${group.height}px</div>
+            <div class="page-list" title="${pageText}"><strong>Pages:</strong> ${pageText}</div>
+          </div>
+        `;
+
+        // Selection Toggle Event
+        card.addEventListener('click', (e) => {
+          if (e.target.tagName !== 'INPUT') {
+            const checkbox = card.querySelector('.card-checkbox');
+            checkbox.checked = !checkbox.checked;
+          }
+          group.selected = card.querySelector('.card-checkbox').checked;
+          card.classList.toggle('selected', group.selected);
+        });
+
+        imageGrid.appendChild(card);
+      });
+    }
+
+    // Quick Action Handlers
+    document.getElementById('btnSelectAll').addEventListener('click', () => {
+      extractedGroups.forEach(g => g.selected = true);
+      renderDashboard();
+    });
+
+    document.getElementById('btnDeselectAll').addEventListener('click', () => {
+      extractedGroups.forEach(g => g.selected = false);
+      renderDashboard();
+    });
+
+    document.getElementById('btnSelectCommon').addEventListener('click', () => {
+      extractedGroups.forEach(g => g.selected = g.pages.length > 1);
+      renderDashboard();
+    });
+
+    // PDF Reconstruction and Image Redaction Process
+    document.getElementById('btnDownload').addEventListener('click', async () => {
+      const selectedGroups = extractedGroups.filter(g => g.selected);
+      if (selectedGroups.length === 0) {
+        alert("Please select at least one image to remove.");
+        return;
+      }
+
+      overlayText.textContent = "Processing PDF & purging selected XObjects...";
+      globalOverlay.style.display = 'flex';
+
+      try {
+        const pdfDoc = await PDFLib.PDFDocument.load(rawPdfBytes);
+        const pages = pdfDoc.getPages();
+
+        // Build list of targeted XObject keys per page
+        selectedGroups.forEach(group => {
+          group.xobjectKeys.forEach(({ pageIdx, key }) => {
+            if (pageIdx < pages.length) {
+              const page = pages[pageIdx];
+              
+              // Access underlying PDF Dictionary structure directly
+              const { node } = page;
+              const resources = node.Resources();
+              if (resources) {
+                const xObjectDict = resources.get(PDFLib.PDFName.of('XObject'));
+                if (xObjectDict) {
+                  // Delete image reference from Page Resources Dictionary
+                  xObjectDict.delete(PDFLib.PDFName.of(key));
+                }
+              }
+            }
+          });
+        });
+
+        // Save PDF with pruned resources
+        const modifiedPdfBytes = await pdfDoc.save();
+
+        // Trigger Direct File Download
+        const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${originalFileName}_cleaned.pdf`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+      } catch (err) {
+        alert("Error modifying PDF: " + err.message);
+        console.error(err);
+      } finally {
+        globalOverlay.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
