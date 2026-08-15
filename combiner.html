@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client-Side PDF Merger</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- pdf-lib CDN -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen py-10 px-4">
+  <div class="max-w-3xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <header class="text-center space-y-2">
+      <h1 class="text-3xl font-bold text-slate-900">PDF Merger</h1>
+      <p class="text-slate-600 text-sm">Combine multiple PDF files locally in your browser. No files are uploaded to any server.</p>
+    </header>
+
+    <!-- Upload Box -->
+    <div 
+      id="drop-zone" 
+      class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-white hover:bg-indigo-50/50 rounded-xl p-8 text-center transition cursor-pointer shadow-sm"
+    >
+      <input type="file" id="file-input" accept="application/pdf" multiple class="hidden">
+      <div class="space-y-3 pointer-events-none">
+        <svg class="w-12 h-12 text-indigo-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+        <div>
+          <span class="font-semibold text-indigo-600">Click to upload</span> or drag and drop PDFs here
+        </div>
+        <p class="text-xs text-slate-400">Multiple files supported</p>
+      </div>
+    </div>
+
+    <!-- Main Workspace (Hidden when empty) -->
+    <div id="workspace" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+      
+      <!-- Queue Header -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <h2 class="font-semibold text-slate-700">Selected PDFs (<span id="file-count">0</span>)</h2>
+        <button id="clear-all" class="text-xs text-red-500 hover:text-red-700 font-medium transition">Clear All</button>
+      </div>
+
+      <!-- File Queue List -->
+      <ul id="file-list" class="space-y-3"></ul>
+
+      <!-- Options & Action -->
+      <div class="pt-4 border-t border-slate-100 space-y-4">
+        <div>
+          <label for="output-filename" class="block text-xs font-semibold text-slate-600 mb-1">Output Filename</label>
+          <div class="flex items-center space-x-2">
+            <input 
+              type="text" 
+              id="output-filename" 
+              value="merged-document" 
+              class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <span class="text-sm font-medium text-slate-500">.pdf</span>
+          </div>
+        </div>
+
+        <button 
+          id="merge-btn" 
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg shadow transition flex items-center justify-center space-x-2"
+        >
+          <span id="btn-text">Merge & Download PDF</span>
+          <svg id="btn-spinner" class="hidden animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="combiner.js"></script>
+</body>
+</html>
